@@ -227,7 +227,7 @@ export const StreamRenderer: React.FC<StreamRendererProps> = ({
                     </div>
                     <div className="mt-1 space-y-2">
                       <div className="flex items-center gap-2 text-sm text-zinc-400">
-                        <pre className="w-full font-sans">
+                        <pre className="w-full font-sans text-wrap">
                           {source.description}
                         </pre>
                       </div>
