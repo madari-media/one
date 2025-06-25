@@ -1477,6 +1477,21 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
       const video = videoRef.current;
       if (!video) return;
 
+      // Ignore keyboard shortcuts when user is typing in input fields or other interactive elements
+      const target = e.target as HTMLElement;
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.tagName === 'SELECT' ||
+        target.isContentEditable ||
+        target.closest('[contenteditable="true"]') ||
+        target.closest('input') ||
+        target.closest('textarea') ||
+        target.closest('select')
+      ) {
+        return;
+      }
+
       // Prevent default behavior for our handled keys
       const preventDefaultKeys = [
         'Space',
@@ -1577,13 +1592,20 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
           }
           break;
 
-        // Picture in Picture
+        // Toggle between fullscreen and mini player
         case 'KeyI':
-          if (!uiState.isFullscreen) {
-            setUiState((prev) => ({
-              ...prev,
-              showMiniVideo: !prev.showMiniVideo,
-            }));
+          if (uiState.isFullscreen) {
+            // If in fullscreen, go to mini player
+            toggleFullscreen();
+            if (!uiState.showMiniVideo) {
+              setUiState((prev) => ({ ...prev, showMiniVideo: true }));
+            }
+          } else if (uiState.showMiniVideo) {
+            // If in mini player, go to fullscreen
+            toggleFullscreen();
+          } else {
+            // If neither, go to mini player first
+            setUiState((prev) => ({ ...prev, showMiniVideo: true }));
           }
           break;
 

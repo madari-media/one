@@ -11,8 +11,7 @@ import {
   Subtitles,
   Volume2,
   VolumeX,
-  X,
-  Expand
+  X
 } from 'lucide-react';
 import { AudioTrack, Chapter, PlayerState, SubtitleTrack, TrackState, UIState } from './types';
 
@@ -54,7 +53,6 @@ export const TrackSelectors: React.FC<TrackSelectorsProps> = ({
   onToggleQueue,
   onToggleMiniVideo,
   onToggleFullscreen,
-  onToggleBrowserFullscreen,
   onClose,
   onUIStateChange,
   formatTime,

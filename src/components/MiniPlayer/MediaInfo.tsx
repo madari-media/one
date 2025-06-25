@@ -68,19 +68,23 @@ export const MediaInfo: React.FC<MediaInfoProps> = ({
         <div className="text-white text-sm font-medium truncate">
           {currentItem.title}
         </div>
-        {getCurrentChapter ? (
-          <div className="text-zinc-400 text-xs truncate">
-            Chapter {getCurrentChapter.index + 1}: {getCurrentChapter.chapter.Name}
-          </div>
-        ) : isCurrentItemEpisode ? (
-          <div className="text-zinc-400 text-xs truncate">
-            {itemDetails.subtitle} {queueLength === 1 ? '• Auto-play enabled' : ''}
-          </div>
-        ) : itemDetails.subtitle ? (
-          <div className="text-zinc-400 text-xs truncate">
-            {itemDetails.subtitle}
-          </div>
-        ) : null}
+        <div className="text-zinc-400 text-xs truncate">
+          {isCurrentItemEpisode && itemDetails.subtitle && (
+            <>
+              {itemDetails.subtitle}
+              {getCurrentChapter && ' • '}
+              {queueLength === 1 && !getCurrentChapter && ' • Auto-play enabled'}
+            </>
+          )}
+          {getCurrentChapter && (
+            <>
+              Chapter {getCurrentChapter.index + 1}: {getCurrentChapter.chapter.Name}
+            </>
+          )}
+          {!isCurrentItemEpisode && itemDetails.subtitle && (
+            <>{itemDetails.subtitle}</>
+          )}
+        </div>
       </div>
     </div>
   );
