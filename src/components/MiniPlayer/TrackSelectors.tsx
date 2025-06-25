@@ -11,7 +11,8 @@ import {
   Subtitles,
   Volume2,
   VolumeX,
-  X
+  X,
+  Expand
 } from 'lucide-react';
 import { AudioTrack, Chapter, PlayerState, SubtitleTrack, TrackState, UIState } from './types';
 
@@ -30,6 +31,7 @@ interface TrackSelectorsProps {
   onToggleQueue: () => void;
   onToggleMiniVideo: () => void;
   onToggleFullscreen: () => void;
+  onToggleBrowserFullscreen: () => void;
   onClose: () => void;
   onUIStateChange: (updates: Partial<UIState>) => void;
   formatTime: (seconds: number) => string;
@@ -52,6 +54,7 @@ export const TrackSelectors: React.FC<TrackSelectorsProps> = ({
   onToggleQueue,
   onToggleMiniVideo,
   onToggleFullscreen,
+  onToggleBrowserFullscreen,
   onClose,
   onUIStateChange,
   formatTime,
@@ -287,28 +290,37 @@ export const TrackSelectors: React.FC<TrackSelectorsProps> = ({
         <List className="w-4 h-4" />
       </Button>
 
-      {/* Mini Video Toggle */}
+      {/* View Mode Toggle (PiP / Fullscreen) */}
       <Button
         variant="ghost"
         size="sm"
-        onClick={onToggleMiniVideo}
+        onClick={() => {
+          if (uiState.isFullscreen) {
+            // If in fullscreen, go to PiP
+            onToggleFullscreen();
+            if (!uiState.showMiniVideo) {
+              onToggleMiniVideo();
+            }
+          } else if (uiState.showMiniVideo) {
+            // If in PiP, go to fullscreen
+            onToggleFullscreen();
+          } else {
+            // If neither, go to PiP first
+            onToggleMiniVideo();
+          }
+        }}
         className={`p-1.5 rounded ${
-          uiState.showMiniVideo ? 'text-red-400' : 'text-zinc-400 hover:text-white'
+          uiState.isFullscreen || uiState.showMiniVideo ? 'text-red-400' : 'text-zinc-400 hover:text-white'
         }`}
-        title="Picture in Picture"
+        title={
+          uiState.isFullscreen 
+            ? "Switch to Picture in Picture" 
+            : uiState.showMiniVideo 
+            ? "Switch to Fullscreen" 
+            : "Picture in Picture"
+        }
       >
-        <Minimize2 className="w-4 h-4" />
-      </Button>
-
-      {/* Fullscreen */}
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={onToggleFullscreen}
-        className="p-1.5 rounded text-zinc-400 hover:text-white"
-        title="Fullscreen"
-      >
-        <Maximize2 className="w-4 h-4" />
+        {uiState.isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
       </Button>
 
       {/* Close */}

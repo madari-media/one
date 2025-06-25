@@ -28,6 +28,7 @@ export interface UIState {
   showAudioTracks: boolean;
   showSubtitles: boolean;
   showChapters: boolean;
+  showPlaybackOptions: boolean;
 }
 
 export interface TrackState {
@@ -70,4 +71,24 @@ export interface SubtitleTrack {
   language: string;
   codec?: string;
   isDefault?: boolean;
+}
+
+export interface BitratePreset {
+  id: string;
+  label: string;
+  bitrate: number; // in bps
+  enabled: boolean;
+}
+
+export interface PlaybackOptions {
+  selectedBitrate: number | null; // null means auto/max
+  availableBitrates: BitratePreset[];
+  aspectRatio: 'auto' | '16:9' | '4:3' | '21:9' | '1:1';
+  playbackSpeed: number; // 0.25 to 2.0
+  subtitleOffset: number; // in seconds, can be negative
+}
+
+export interface PlaybackOptionsState {
+  showPlaybackOptions: boolean;
+  playbackOptions: PlaybackOptions;
 }
