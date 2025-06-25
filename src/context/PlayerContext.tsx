@@ -30,7 +30,7 @@ export const PlayerProvider: React.FC<PlayerProviderProps> = ({ children }) => {
   const addToQueue = (item: QueueItem) => {
     setQueue(prev => {
       // Check if item already exists in queue
-      const existingIndex = prev.findIndex(queueItem => queueItem.id === item.id);
+      const existingIndex = prev.findIndex(queueItem => queueItem.jellyfinItemId === item.jellyfinItemId);
       if (existingIndex !== -1) {
         return prev; // Don't add duplicates
       }
@@ -45,7 +45,7 @@ export const PlayerProvider: React.FC<PlayerProviderProps> = ({ children }) => {
 
   const playNow = (item: QueueItem) => {
     // Check if item is already in queue
-    const existingIndex = queue.findIndex(queueItem => queueItem.id === item.id);
+    const existingIndex = queue.findIndex(queueItem => queueItem.jellyfinItemId === item.jellyfinItemId);
     
     if (existingIndex !== -1) {
       // Item exists, just play it
@@ -62,7 +62,7 @@ export const PlayerProvider: React.FC<PlayerProviderProps> = ({ children }) => {
   const addMultipleToQueue = (items: QueueItem[]) => {
     setQueue(prev => {
       const newItems = items.filter(item => 
-        !prev.some(queueItem => queueItem.id === item.id)
+        !prev.some(queueItem => queueItem.jellyfinItemId === item.jellyfinItemId)
       );
       return [...prev, ...newItems];
     });

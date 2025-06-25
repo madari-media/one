@@ -1,14 +1,14 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { CornerUpLeft, CornerUpRight, Pause, Play, Repeat, Shuffle, SkipBack, SkipForward } from 'lucide-react';
-import { PlayerState, QueueItem } from './types';
+import { Chapter, PlayerState, QueueItem } from './types';
 
 interface PlayerControlsProps {
   playerState: PlayerState;
-  currentItem: QueueItem | null;
   isCurrentItemEpisode: boolean;
   queue: QueueItem[];
   currentIndex: number;
+  chapters: Chapter[];
   onPlayPause: () => void;
   onPrevious: () => void;
   onNext: () => void;
@@ -20,7 +20,7 @@ interface PlayerControlsProps {
 
 export const PlayerControls: React.FC<PlayerControlsProps> = ({
   playerState,
-  currentItem,
+  chapters,
   onPlayPause,
   onPrevious,
   onNext,
@@ -29,7 +29,7 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
   onShuffleToggle,
   onRepeatModeChange,
 }) => {
-  const hasChapters = currentItem?.chapters && currentItem.chapters.length > 0;
+  const hasChapters = chapters && chapters.length > 0;
 
   return (
     <div className="flex items-center gap-2">

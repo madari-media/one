@@ -1,9 +1,9 @@
 import React from 'react';
-import { Chapter, HoverState, PlayerState, QueueItem } from './types';
+import { Chapter, HoverState, PlayerState } from './types';
 
 interface ProgressBarProps {
   playerState: PlayerState;
-  currentItem: QueueItem | null;
+  chapters: Chapter[];
   hoverState: HoverState;
   onSeek: (value: number[]) => void;
   onChapterSeek: (chapterIndex: number) => void;
@@ -15,7 +15,7 @@ interface ProgressBarProps {
 
 export const ProgressBar: React.FC<ProgressBarProps> = ({
   playerState,
-  currentItem,
+  chapters,
   hoverState,
   onSeek,
   onChapterSeek,
@@ -69,7 +69,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
         />
 
         {/* Chapter Markers */}
-        {currentItem?.chapters && playerState.duration > 0 && currentItem.chapters.map((chapter, index) => {
+        {chapters && playerState.duration > 0 && chapters.map((chapter, index) => {
           const chapterTime = ticksToSeconds(chapter.StartPositionTicks);
           const position = (chapterTime / playerState.duration) * 100;
           return (

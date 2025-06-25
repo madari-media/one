@@ -1,7 +1,71 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { GripVertical, X } from 'lucide-react';
 import { QueueItem } from './types';
+
+interface ItemDetails {
+  poster?: string;
+  subtitle?: string;
+}
+
+const QueueItemInfo: React.FC<{ item: QueueItem }> = ({ item }) => {
+  const [itemDetails, setItemDetails] = useState<ItemDetails>({});
+
+  useEffect(() => {
+    const fetchItemDetails = async () => {
+      if (!item?.jellyfinItemId) return;
+
+      try {
+        const baseUrl = localStorage.getItem('jellyfin_server_url');
+        const apiKey = localStorage.getItem('jellyfin_api_key');
+        const userId = localStorage.getItem('jellyfin_user_id');
+
+        if (!baseUrl || !apiKey || !userId) return;
+
+        const response = await fetch(
+          `${baseUrl}/Items/${item.jellyfinItemId}?api_key=${apiKey}&UserId=${userId}`
+        );
+        
+        if (response.ok) {
+          const data = await response.json();
+          setItemDetails({
+            poster: data.ImageTags?.Primary 
+              ? `${baseUrl}/Items/${item.jellyfinItemId}/Images/Primary?api_key=${apiKey}`
+              : undefined,
+            subtitle: data.Type === 'Episode' 
+              ? `S${data.ParentIndexNumber}E${data.IndexNumber}`
+              : undefined
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching item details:', error);
+      }
+    };
+
+    fetchItemDetails();
+  }, [item?.jellyfinItemId]);
+
+  return (
+    <>
+      {/* Poster */}
+      {itemDetails.poster && (
+        <img
+          src={itemDetails.poster}
+          alt={item.title}
+          className="w-10 h-10 rounded object-cover flex-shrink-0"
+        />
+      )}
+
+      {/* Item Info */}
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-medium truncate">{item.title}</div>
+        {itemDetails.subtitle && (
+          <div className="text-xs opacity-70 truncate">{itemDetails.subtitle}</div>
+        )}
+      </div>
+    </>
+  );
+};
 
 interface QueueProps {
   queue: QueueItem[];
@@ -142,7 +206,7 @@ export const Queue: React.FC<QueueProps> = ({
         <div className="space-y-2">
           {queue.map((item, index) => (
             <div
-              key={`${item.id}-${index}`}
+              key={`${item.jellyfinItemId}-${index}`}
               draggable
               onDragStart={(e) => handleDragStart(e, index)}
               onDragOver={(e) => handleDragOver(e, index)}
@@ -169,22 +233,7 @@ export const Queue: React.FC<QueueProps> = ({
                 <GripVertical className="w-4 h-4 text-zinc-500" />
               </div>
 
-              {/* Poster */}
-              {item.poster && (
-                <img
-                  src={item.poster}
-                  alt={item.title}
-                  className="w-10 h-10 rounded object-cover flex-shrink-0"
-                />
-              )}
-
-              {/* Item Info */}
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium truncate">{item.title}</div>
-                {item.subtitle && (
-                  <div className="text-xs opacity-70 truncate">{item.subtitle}</div>
-                )}
-              </div>
+              <QueueItemInfo item={item} />
 
               {/* Remove Button */}
               <Button

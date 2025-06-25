@@ -76,23 +76,20 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
   const [hlsTracksLoaded, setHlsTracksLoaded] = useState(false);
   const [playbackInfo, setPlaybackInfo] = useState<any>(null);
 
+  // New state for simplified QueueItem interface
+  const [streamUrl, setStreamUrl] = useState<string>('');
+  const [mediaStreams, setMediaStreams] = useState<any[]>([]);
+  const [playSessionId, setPlaySessionId] = useState<string>('');
+  const [startPositionTicks, setStartPositionTicks] = useState<number>(0);
+  const [chapters, setChapters] = useState<Chapter[]>([]);
+
   const isCurrentItemEpisode = useMemo(() => {
     console.log('🔍 Checking if current item is episode:', {
       title: currentItem?.title,
-      subtitle: currentItem?.subtitle,
       jellyfinItemId: currentItem?.jellyfinItemId,
       itemType: itemTypeCache.get(currentItem?.jellyfinItemId || ''),
     });
 
-    // Check if subtitle contains episode pattern (S##E## or similar)
-    if (currentItem?.subtitle) {
-      const episodePattern = /S\d+E\d+/i;
-      if (episodePattern.test(currentItem.subtitle)) {
-        console.log('✅ Episode detected from subtitle pattern:', currentItem.subtitle);
-        return true;
-      }
-    }
-    
     // Check if we have cached the item type
     const cachedType = itemTypeCache.get(currentItem?.jellyfinItemId || '');
     if (cachedType === 'Episode') {
@@ -111,7 +108,7 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
 
   // Progress reporting to Jellyfin
   const reportProgress = useCallback(async (positionTicks: number, isPaused: boolean = false) => {
-    if (!currentItem?.jellyfinItemId) return;
+    if (!currentItem?.jellyfinItemId || !playSessionId) return;
 
     try {
       const baseUrl = localStorage.getItem('jellyfin_server_url');
@@ -119,6 +116,22 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
       const userId = localStorage.getItem('jellyfin_user_id');
       
       if (!baseUrl || !apiKey || !userId) return;
+
+      // Determine actual play method based on media source
+      const mediaSource = playbackInfo?.MediaSources?.[0];
+      let playMethod = 'DirectStream';
+      if (mediaSource?.TranscodingUrl) {
+        playMethod = 'Transcode';
+      } else if (mediaSource?.SupportsDirectPlay) {
+        playMethod = 'DirectPlay';
+      }
+
+      console.log('📊 Reporting progress:', {
+        positionTicks,
+        isPaused,
+        playMethod,
+        sessionId: playSessionId
+      });
 
       await fetch(`${baseUrl}/Sessions/Playing/Progress`, {
         method: 'POST',
@@ -129,23 +142,23 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
         body: JSON.stringify({
           ItemId: currentItem.jellyfinItemId,
           PositionTicks: positionTicks,
-          PlaySessionId: currentItem.playSessionId,
+          PlaySessionId: playSessionId,
           MediaSourceId: currentItem.jellyfinItemId,
           CanSeek: true,
           IsPaused: isPaused,
           IsMuted: playerState.isMuted,
           VolumeLevel: Math.round(playerState.volume * 100),
-          PlayMethod: 'DirectStream',
+          PlayMethod: playMethod,
           RepeatMode: 'RepeatNone',
         }),
       });
     } catch (error) {
       console.error('Error reporting progress:', error);
     }
-  }, [currentItem, playerState.isMuted, playerState.volume]);
+  }, [currentItem, playerState.isMuted, playerState.volume, playSessionId, playbackInfo]);
 
   const reportPlaybackStart = useCallback(async () => {
-    if (!currentItem?.jellyfinItemId) return;
+    if (!currentItem?.jellyfinItemId || !playSessionId) return;
 
     try {
       const baseUrl = localStorage.getItem('jellyfin_server_url');
@@ -153,6 +166,21 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
       const userId = localStorage.getItem('jellyfin_user_id');
       
       if (!baseUrl || !apiKey || !userId) return;
+
+      // Determine actual play method based on media source
+      const mediaSource = playbackInfo?.MediaSources?.[0];
+      let playMethod = 'DirectStream';
+      if (mediaSource?.TranscodingUrl) {
+        playMethod = 'Transcode';
+      } else if (mediaSource?.SupportsDirectPlay) {
+        playMethod = 'DirectPlay';
+      }
+
+      console.log('▶️ Reporting playback start:', {
+        itemId: currentItem.jellyfinItemId,
+        playMethod,
+        sessionId: playSessionId
+      });
 
       await fetch(`${baseUrl}/Sessions/Playing`, {
         method: 'POST',
@@ -162,20 +190,20 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
         },
         body: JSON.stringify({
           ItemId: currentItem.jellyfinItemId,
-          PlaySessionId: currentItem.playSessionId,
+          PlaySessionId: playSessionId,
           MediaSourceId: currentItem.jellyfinItemId,
           CanSeek: true,
           IsPaused: false,
           IsMuted: playerState.isMuted,
           VolumeLevel: Math.round(playerState.volume * 100),
-          PlayMethod: 'DirectStream',
+          PlayMethod: playMethod,
           RepeatMode: 'RepeatNone',
         }),
       });
     } catch (error) {
       console.error('Error reporting playback start:', error);
     }
-  }, [currentItem, playerState.isMuted, playerState.volume]);
+  }, [currentItem, playerState.isMuted, playerState.volume, playSessionId, playbackInfo]);
 
   const reportPlaybackStop = useCallback(async (positionTicks: number) => {
     if (!currentItem?.jellyfinItemId) return;
@@ -196,7 +224,7 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
         body: JSON.stringify({
           ItemId: currentItem.jellyfinItemId,
           PositionTicks: positionTicks,
-          PlaySessionId: currentItem.playSessionId,
+          PlaySessionId: playSessionId,
           MediaSourceId: currentItem.jellyfinItemId,
         }),
       });
@@ -206,10 +234,9 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
   }, [currentItem]);
 
   const getCurrentChapter = useMemo(() => {
-    if (!currentItem?.chapters || currentItem.chapters.length === 0) return null;
+    if (!chapters || chapters.length === 0) return null;
     
     const currentTimeTicks = playerState.currentTime * 10000000;
-    const chapters = currentItem.chapters;
     
     for (let i = chapters.length - 1; i >= 0; i--) {
       if (currentTimeTicks >= chapters[i].StartPositionTicks) {
@@ -218,21 +245,21 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
     }
     
     return { index: 0, chapter: chapters[0] };
-  }, [currentItem?.chapters, playerState.currentTime]);
+  }, [chapters, playerState.currentTime]);
 
   const getChapterAtTime = useCallback((timeInSeconds: number): Chapter | null => {
-    if (!currentItem?.chapters || currentItem.chapters.length === 0) return null;
+    if (!chapters || chapters.length === 0) return null;
     
     const timeTicks = timeInSeconds * 10000000;
     
-    for (let i = currentItem.chapters.length - 1; i >= 0; i--) {
-      if (timeTicks >= currentItem.chapters[i].StartPositionTicks) {
-        return currentItem.chapters[i];
+    for (let i = chapters.length - 1; i >= 0; i--) {
+      if (timeTicks >= chapters[i].StartPositionTicks) {
+        return chapters[i];
       }
     }
     
-    return currentItem.chapters[0];
-  }, [currentItem?.chapters]);
+    return chapters[0];
+  }, [chapters]);
 
   const formatTime = useCallback((seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -343,19 +370,8 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
       });
 
       return {
-        id: nextEpisode.Id,
-        title: nextEpisode.Name,
-        subtitle: `S${nextEpisode.ParentIndexNumber}E${nextEpisode.IndexNumber}`,
-        url: `${baseUrl}/Videos/${nextEpisode.Id}/stream?api_key=${apiKey}&UserId=${userId}&DeviceId=web-player`,
-        poster: nextEpisode.ImageTags?.Primary 
-          ? `${baseUrl}/Items/${nextEpisode.Id}/Images/Primary?api_key=${apiKey}`
-          : undefined,
         jellyfinItemId: nextEpisode.Id,
-        isEpisode: true,
-        seasonId: nextEpisode.SeasonId,
-        seriesId: nextEpisode.SeriesId,
-        indexNumber: nextEpisode.IndexNumber,
-        parentIndexNumber: nextEpisode.ParentIndexNumber,
+        title: nextEpisode.Name,
       };
     } catch (error) {
       console.error('❌ Error fetching next episode:', error);
@@ -424,19 +440,8 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
       });
 
       return {
-        id: prevEpisode.Id,
-        title: prevEpisode.Name,
-        subtitle: `S${prevEpisode.ParentIndexNumber}E${prevEpisode.IndexNumber}`,
-        url: `${baseUrl}/Videos/${prevEpisode.Id}/stream?api_key=${apiKey}&UserId=${userId}&DeviceId=web-player`,
-        poster: prevEpisode.ImageTags?.Primary 
-          ? `${baseUrl}/Items/${prevEpisode.Id}/Images/Primary?api_key=${apiKey}`
-          : undefined,
         jellyfinItemId: prevEpisode.Id,
-        isEpisode: true,
-        seasonId: prevEpisode.SeasonId,
-        seriesId: prevEpisode.SeriesId,
-        indexNumber: prevEpisode.IndexNumber,
-        parentIndexNumber: prevEpisode.ParentIndexNumber,
+        title: prevEpisode.Name,
       };
     } catch (error) {
       console.error('❌ Error fetching previous episode:', error);
@@ -467,7 +472,7 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
           },
           body: JSON.stringify({
             UserId: userId,
-            StartTimeTicks: currentItem.startPositionTicks || 0,
+            StartTimeTicks: startPositionTicks || 0,
             IsPlayback: true,
             AutoOpenLiveStream: true,
             MaxStreamingBitrate: 10000000,
@@ -508,12 +513,113 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
     }
     
     return null;
-  }, [currentItem?.jellyfinItemId, currentItem?.startPositionTicks]);
+  }, [currentItem?.jellyfinItemId, startPositionTicks]);
+
+  // Helper functions for simplified QueueItem interface
+  const generateStreamUrl = useCallback((playbackInfo: any): string => {
+    if (!playbackInfo?.MediaSources?.[0]) return '';
+
+    const baseUrl = localStorage.getItem('jellyfin_server_url');
+    const apiKey = localStorage.getItem('jellyfin_api_key');
+    const mediaSource = playbackInfo.MediaSources[0];
+
+    if (mediaSource.SupportsDirectPlay) {
+      return `${baseUrl}/Videos/${mediaSource.Id}/stream?api_key=${apiKey}&Static=true`;
+    } else if (mediaSource.TranscodingUrl) {
+      return `${baseUrl}${mediaSource.TranscodingUrl}`;
+    } else if (mediaSource.SupportsDirectStream) {
+      return `${baseUrl}/Videos/${mediaSource.Id}/stream?api_key=${apiKey}`;
+    }
+    return '';
+  }, []);
+
+  const fetchItemMetadata = useCallback(async () => {
+    if (!currentItem?.jellyfinItemId) return;
+
+    try {
+      const baseUrl = localStorage.getItem('jellyfin_server_url');
+      const apiKey = localStorage.getItem('jellyfin_api_key');
+      const userId = localStorage.getItem('jellyfin_user_id');
+
+      if (!baseUrl || !apiKey || !userId) return;
+
+      // Fetch item details including resume position
+      const response = await fetch(
+        `${baseUrl}/Items/${currentItem.jellyfinItemId}?api_key=${apiKey}&UserId=${userId}`
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        setStartPositionTicks(data.UserData?.PlaybackPositionTicks || 0);
+        
+        // Cache item type for episode detection
+        setItemTypeCache(prev => new Map(prev).set(currentItem.jellyfinItemId, data.Type));
+        
+        // Fetch chapters if available
+        if (data.Chapters?.length > 0) {
+          setChapters(data.Chapters);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching item metadata:', error);
+    }
+  }, [currentItem?.jellyfinItemId]);
+
+  const initializePlaybackSession = useCallback(async () => {
+    if (!currentItem?.jellyfinItemId) return null;
+
+    // First fetch metadata
+    await fetchItemMetadata();
+
+    // Then fetch playback info
+    const playbackInfoResult = await fetchPlaybackInfo();
+    if (playbackInfoResult) {
+      setPlaybackInfo(playbackInfoResult);
+      setPlaySessionId(playbackInfoResult.PlaySessionId || '');
+      
+      // Generate stream URL
+      const url = generateStreamUrl(playbackInfoResult);
+      setStreamUrl(url);
+      
+      // Set media streams
+      if (playbackInfoResult.MediaSources?.[0]?.MediaStreams) {
+        setMediaStreams(playbackInfoResult.MediaSources[0].MediaStreams);
+      }
+      
+      return url;
+    }
+    return null;
+  }, [currentItem?.jellyfinItemId, fetchItemMetadata, fetchPlaybackInfo, generateStreamUrl]);
+
+  // Simple HLS source reload for track switching (without API calls)
+  const reloadHlsSource = useCallback((newUrl: string, currentTime: number, isPlaying: boolean) => {
+    const video = videoRef.current;
+    if (!video || !hlsRef.current) return;
+
+    console.log('🔄 Reloading HLS source without API calls');
+    
+    hlsRef.current.loadSource(newUrl);
+    
+    const handleManifestParsed = () => {
+      video.currentTime = currentTime;
+      if (isPlaying) {
+        video.play();
+      }
+      setTrackState(prev => ({ ...prev, isSwitchingTracks: false }));
+      hlsRef.current?.off(Hls.Events.MANIFEST_PARSED, handleManifestParsed);
+    };
+    
+    hlsRef.current.on(Hls.Events.MANIFEST_PARSED, handleManifestParsed);
+  }, []);
 
   // Video initialization and management
-  const initializeVideo = useCallback(async () => {
+  const initializeVideo = useCallback(async (url?: string, skipApiCalls = false) => {
     const video = videoRef.current;
-    if (!video || !currentItem) return;
+    const videoUrl = url || streamUrl;
+    if (!video || !currentItem || !videoUrl) {
+      console.log('🚫 Cannot initialize video:', { video: !!video, currentItem: !!currentItem, videoUrl });
+      return;
+    }
 
     if (hlsRef.current) {
       hlsRef.current.destroy();
@@ -527,11 +633,12 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
     
     setHlsTracksLoaded(false);
 
-    // Fetch full playback info to get proper MediaStreams data
-    const playbackInfo = await fetchPlaybackInfo();
-    const mediaStreams = playbackInfo?.MediaSources?.[0]?.MediaStreams || currentItem.mediaStreams || [];
+    // Only fetch playback info if not skipping API calls (e.g., during track switching)
+    if (!skipApiCalls) {
+      await fetchPlaybackInfo();
+    }
 
-    const isHlsStream = currentItem.url.includes('.m3u8') || currentItem.url.includes('hls');
+    const isHlsStream = videoUrl.includes('.m3u8') || videoUrl.includes('hls');
     
     if (isHlsStream && Hls.isSupported()) {
       const hls = new Hls({
@@ -543,7 +650,7 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
       });
       
       hlsRef.current = hls;
-      hls.loadSource(currentItem.url);
+      hls.loadSource(videoUrl);
       hls.attachMedia(video);
       
       hls.on(Hls.Events.MANIFEST_PARSED, async () => {
@@ -568,8 +675,8 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
         });
         
         // Set resume position if available
-        if (currentItem.startPositionTicks && currentItem.startPositionTicks > 0) {
-          const resumeSeconds = currentItem.startPositionTicks / 10000000;
+        if (startPositionTicks && startPositionTicks > 0) {
+          const resumeSeconds = startPositionTicks / 10000000;
           console.log('🎬 Resuming from:', resumeSeconds, 'seconds');
           video.currentTime = resumeSeconds;
         }
@@ -587,11 +694,11 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
           console.error('Fatal HLS error:', data);
           hls.destroy();
           hlsRef.current = null;
-          video.src = currentItem.url;
+          video.src = videoUrl;
         }
       });
     } else if (isHlsStream && video.canPlayType('application/vnd.apple.mpegurl')) {
-      video.src = currentItem.url;
+      video.src = videoUrl;
       // Set resume position for native HLS
       video.addEventListener('loadedmetadata', async () => {
         console.log('📺 Available native text tracks:', {
@@ -604,8 +711,8 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
           })),
         });
         
-        if (currentItem.startPositionTicks && currentItem.startPositionTicks > 0) {
-          const resumeSeconds = currentItem.startPositionTicks / 10000000;
+        if (startPositionTicks && startPositionTicks > 0) {
+          const resumeSeconds = startPositionTicks / 10000000;
           console.log('🎬 Resuming from:', resumeSeconds, 'seconds');
           video.currentTime = resumeSeconds;
         }
@@ -618,7 +725,7 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
         }
       }, { once: true });
     } else {
-      video.src = currentItem.url;
+      video.src = videoUrl;
       // Set resume position for direct streams
       video.addEventListener('loadedmetadata', async () => {
         console.log('📺 Available direct stream text tracks:', {
@@ -631,8 +738,8 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
           })),
         });
         
-        if (currentItem.startPositionTicks && currentItem.startPositionTicks > 0) {
-          const resumeSeconds = currentItem.startPositionTicks / 10000000;
+        if (startPositionTicks && startPositionTicks > 0) {
+          const resumeSeconds = startPositionTicks / 10000000;
           console.log('🎬 Resuming from:', resumeSeconds, 'seconds');
           video.currentTime = resumeSeconds;
         }
@@ -744,26 +851,26 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
   // Chapter navigation
   const seekToChapter = useCallback((chapterIndex: number) => {
     const video = videoRef.current;
-    if (!video || !currentItem?.chapters || chapterIndex >= currentItem.chapters.length) return;
+    if (!video || !chapters || chapterIndex >= chapters.length) return;
 
-    const chapter = currentItem.chapters[chapterIndex];
+    const chapter = chapters[chapterIndex];
     const seekTime = ticksToSeconds(chapter.StartPositionTicks);
     
     video.currentTime = seekTime;
     setPlayerState(prev => ({ ...prev, currentTime: seekTime }));
-  }, [currentItem?.chapters, ticksToSeconds]);
+  }, [chapters, ticksToSeconds]);
 
   const nextChapter = useCallback(() => {
-    if (!getCurrentChapter || !currentItem?.chapters) return;
+    if (!getCurrentChapter || !chapters) return;
     
     const nextIndex = getCurrentChapter.index + 1;
-    if (nextIndex < currentItem.chapters.length) {
+    if (nextIndex < chapters.length) {
       seekToChapter(nextIndex);
     }
-  }, [getCurrentChapter, currentItem?.chapters, seekToChapter]);
+  }, [getCurrentChapter, chapters, seekToChapter]);
 
   const previousChapter = useCallback(() => {
-    if (!getCurrentChapter || !currentItem?.chapters) return;
+    if (!getCurrentChapter || !chapters) return;
     
     const video = videoRef.current;
     if (!video) return;
@@ -816,22 +923,22 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
     const subtitleTracks: SubtitleTrack[] = [];
 
     // Use PlaybackInfo MediaStreams if available, otherwise fall back to currentItem
-    const mediaStreams = playbackInfo?.MediaSources?.[0]?.MediaStreams || currentItem?.mediaStreams || [];
+    const currentMediaStreams = playbackInfo?.MediaSources?.[0]?.MediaStreams || mediaStreams || [];
 
     console.log('🔍 Getting available tracks:', {
       hasPlaybackInfo: !!playbackInfo,
-      hasMediaStreams: !!mediaStreams.length,
-      mediaStreamsLength: mediaStreams.length,
+      hasMediaStreams: !!currentMediaStreams.length,
+      mediaStreamsLength: currentMediaStreams.length,
       hasHlsRef: !!hlsRef.current,
       hlsTracksLoaded,
       hlsSubtitleTracks: hlsRef.current?.subtitleTracks?.length,
       hlsAudioTracks: hlsRef.current?.audioTracks?.length
     });
 
-    if (mediaStreams.length > 0) {
+    if (currentMediaStreams.length > 0) {
       // Always use PlaybackInfo MediaStreams as the source of truth
-      const jellyfinAudioTracks = mediaStreams.filter((stream: any) => stream.Type === 'Audio');
-      const jellyfinSubtitleTracks = mediaStreams.filter((stream: any) => stream.Type === 'Subtitle');
+      const jellyfinAudioTracks = currentMediaStreams.filter((stream: any) => stream.Type === 'Audio');
+      const jellyfinSubtitleTracks = currentMediaStreams.filter((stream: any) => stream.Type === 'Subtitle');
 
       console.log('📺 Jellyfin tracks found:', {
         audioTracks: jellyfinAudioTracks.length,
@@ -870,266 +977,165 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
     console.log('📺 Final tracks:', { audioTracks, subtitleTracks });
 
     return { audioTracks, subtitleTracks };
-  }, [playbackInfo, currentItem?.mediaStreams]);
+  }, [playbackInfo, mediaStreams]);
 
   // Track selection handlers
   const selectAudioTrack = useCallback(async (trackId: number) => {
-    // Implementation for audio track switching
-    console.log('Switching to audio track:', trackId);
+    console.log('🔄 Switching to audio track:', trackId);
     
     const video = videoRef.current;
-    if (!video) return;
+    if (!video || !currentItem?.jellyfinItemId || !playbackInfo) return;
 
-    // For HLS streams
-    if (hlsRef.current) {
-      try {
-        hlsRef.current.audioTrack = trackId;
-        console.log('✅ HLS audio track switched to:', trackId);
-      } catch (error) {
-        console.error('❌ Failed to switch HLS audio track:', error);
+    try {
+      setTrackState(prev => ({ ...prev, isSwitchingTracks: true }));
+      
+      console.log('📺 Generating new stream URL with audio track:', trackId);
+      
+      const currentTime = video.currentTime;
+      const isPlaying = !video.paused;
+      
+      const baseUrl = localStorage.getItem('jellyfin_server_url');
+      const apiKey = localStorage.getItem('jellyfin_api_key');
+      
+      if (!baseUrl || !apiKey) return;
+
+      // Use existing playback info but modify the stream URL to include audio track
+      const mediaSource = playbackInfo.MediaSources?.[0];
+      if (!mediaSource) return;
+
+      let newStreamUrl: string;
+      
+      if (mediaSource.SupportsDirectPlay) {
+        // For direct play, add audio stream index parameter
+        newStreamUrl = `${baseUrl}/Videos/${mediaSource.Id}/stream?api_key=${apiKey}&Static=true&AudioStreamIndex=${trackId}`;
+      } else if (mediaSource.TranscodingUrl) {
+        // For transcoding, modify the existing URL to replace audio track
+        let transcodingUrl = mediaSource.TranscodingUrl;
+        
+        // Remove existing AudioStreamIndex if present
+        transcodingUrl = transcodingUrl.replace(/[&?]AudioStreamIndex=\d+/g, '');
+        
+        // Add the new AudioStreamIndex
+        const separator = transcodingUrl.includes('?') ? '&' : '?';
+        newStreamUrl = `${baseUrl}${transcodingUrl}${separator}AudioStreamIndex=${trackId}`;
+      } else if (mediaSource.SupportsDirectStream) {
+        // For direct stream, add audio stream index parameter
+        newStreamUrl = `${baseUrl}/Videos/${mediaSource.Id}/stream?api_key=${apiKey}&AudioStreamIndex=${trackId}`;
+      } else {
+        console.error('❌ No supported stream method found');
+        return;
       }
+
+      console.log('📺 Generated new stream URL with audio track:', newStreamUrl);
+      
+      if (hlsRef.current) {
+        reloadHlsSource(newStreamUrl, currentTime, isPlaying);
+      } else {
+        video.src = newStreamUrl;
+        video.addEventListener('loadedmetadata', () => {
+          video.currentTime = currentTime;
+          if (isPlaying) {
+            video.play();
+          }
+          setTrackState(prev => ({ ...prev, isSwitchingTracks: false }));
+        }, { once: true });
+      }
+      
+      setStreamUrl(newStreamUrl);
+      setTrackState(prev => ({ ...prev, selectedAudioTrack: trackId }));
+      console.log('✅ Stream restarted with audio track:', trackId);
+    } catch (error) {
+      console.error('❌ Failed to switch audio track:', error);
+      setTrackState(prev => ({ ...prev, isSwitchingTracks: false }));
     }
-    // For native video elements, audio track switching is limited
-    
-    setTrackState(prev => ({ ...prev, selectedAudioTrack: trackId }));
-  }, []);
+  }, [currentItem?.jellyfinItemId, playbackInfo]);
 
   const selectSubtitleTrack = useCallback(async (trackId: number) => {
     console.log('🔄 Switching to subtitle track:', trackId);
     
     const video = videoRef.current;
-    if (!video || !currentItem?.jellyfinItemId) return;
+    if (!video || !currentItem?.jellyfinItemId || !playbackInfo) return;
 
     try {
-      // Find the selected subtitle stream info from PlaybackInfo MediaStreams
-      const mediaStreams = playbackInfo?.MediaSources?.[0]?.MediaStreams || currentItem?.mediaStreams || [];
-      const selectedStream = mediaStreams.find((s: any) => s.Type === 'Subtitle' && s.Index === trackId);
+      setTrackState(prev => ({ ...prev, isSwitchingTracks: true }));
       
-      if (trackId >= 0 && selectedStream) {
-        console.log('📺 Selected subtitle stream:', selectedStream);
-        
-        // For Jellyfin, we need to restart the stream with the new subtitle index
-        console.log('📺 Restarting stream with subtitle index:', trackId);
-        console.log('📺 Selected stream details:', {
-          index: selectedStream.Index,
-          displayTitle: selectedStream.DisplayTitle,
-          language: selectedStream.Language,
-          deliveryMethod: selectedStream.DeliveryMethod
-        });
-        
-        // Store current playback position
-        const currentTime = video.currentTime;
-        const isPlaying = !video.paused;
-        
-        // Get new playback info with the selected subtitle
-        const baseUrl = localStorage.getItem('jellyfin_server_url');
-        const apiKey = localStorage.getItem('jellyfin_api_key');
-        const userId = localStorage.getItem('jellyfin_user_id');
+      console.log('📺 Generating new stream URL with subtitle track:', trackId);
+      
+      const currentTime = video.currentTime;
+      const isPlaying = !video.paused;
+      
+      const baseUrl = localStorage.getItem('jellyfin_server_url');
+      const apiKey = localStorage.getItem('jellyfin_api_key');
+      
+      if (!baseUrl || !apiKey) return;
 
-        if (!baseUrl || !apiKey || !userId) return;
+      // Use existing playback info but modify the stream URL to include subtitle track
+      const mediaSource = playbackInfo.MediaSources?.[0];
+      if (!mediaSource) return;
+      
+      console.log('📺 Available media source:', mediaSource);
 
-        const response = await fetch(
-          `${baseUrl}/Items/${currentItem.jellyfinItemId}/PlaybackInfo`,
-          {
-            method: 'POST',
-            headers: {
-              'X-Emby-Token': apiKey,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              UserId: userId,
-              StartTimeTicks: Math.floor(currentTime * 10000000), // Convert to ticks
-              IsPlayback: true,
-              AutoOpenLiveStream: true,
-              MaxStreamingBitrate: 10000000,
-              DeviceProfile: {
-                MaxStreamingBitrate: 120000000,
-                MaxStaticBitrate: 100000000,
-                DirectPlayProfiles: [
-                  { Container: 'webm', Type: 'Video', VideoCodec: 'vp8,vp9,av1', AudioCodec: 'vorbis,opus' },
-                  { Container: 'mp4,m4v', Type: 'Video', VideoCodec: 'h264,hevc,av1', AudioCodec: 'aac,mp3,mp2,opus,flac,vorbis' },
-                  { Container: 'hls', Type: 'Video', VideoCodec: 'av1,h264,vp9', AudioCodec: 'aac,mp2,opus,flac' },
-                ],
-                TranscodingProfiles: [
-                  {
-                    Container: 'mp4',
-                    Type: 'Video',
-                    AudioCodec: 'aac,opus,flac',
-                    VideoCodec: 'av1,h264,vp9',
-                    Context: 'Streaming',
-                    Protocol: 'hls',
-                    MaxAudioChannels: '2',
-                    MinSegments: '2',
-                    BreakOnNonKeyFrames: true,
-                  },
-                ],
-                SubtitleProfiles: [
-                  {
-                    Format: 'subrip',
-                    Method: 'Encode'
-                  },
-                  {
-                    Format: 'ass',
-                    Method: 'Encode'
-                  },
-                  {
-                    Format: 'ssa',
-                    Method: 'Encode'
-                  }
-                ],
-              },
-            }),
-          }
-        );
+      console.log('📺 Original TranscodingUrl:', mediaSource.TranscodingUrl);
 
-        if (response.ok) {
-          const newPlaybackInfo = await response.json();
-          console.log('📺 New PlaybackInfo response:', newPlaybackInfo);
-          const newStreamUrl = newPlaybackInfo.MediaSources?.[0]?.TranscodingUrl;
-          
-          if (newStreamUrl) {
-            const fullStreamUrl = `${baseUrl}${newStreamUrl}`;
-            console.log('📺 Got new stream URL with subtitle:', fullStreamUrl);
-            
-            // Verify the subtitle index in the URL
-            const urlMatch = fullStreamUrl.match(/SubtitleStreamIndex=(\d+)/);
-            const actualSubtitleIndex = urlMatch ? parseInt(urlMatch[1]) : null;
-            console.log('📺 Actual subtitle index in URL:', actualSubtitleIndex, 'vs requested:', trackId);
-            
-            // Update the HLS source
-            if (hlsRef.current) {
-              hlsRef.current.loadSource(fullStreamUrl);
-              
-              // Wait for manifest to be parsed, then seek to previous position
-              hlsRef.current.on(Hls.Events.MANIFEST_PARSED, () => {
-                video.currentTime = currentTime;
-                if (isPlaying) {
-                  video.play();
-                }
-              });
-            } else {
-              // For native HLS support
-              video.src = fullStreamUrl;
-              video.addEventListener('loadedmetadata', () => {
-                video.currentTime = currentTime;
-                if (isPlaying) {
-                  video.play();
-                }
-              }, { once: true });
-            }
-            
-            setPlaybackInfo(newPlaybackInfo);
-            console.log('✅ Stream restarted with subtitle track:', trackId);
-          }
+      let newStreamUrl: string;
+      
+      if (mediaSource.SupportsDirectPlay) {
+        // For direct play, add subtitle stream index parameter
+        const subtitleParam = trackId >= 0 ? `&SubtitleStreamIndex=${trackId}` : '';
+        newStreamUrl = `${baseUrl}/Videos/${mediaSource.Id}/stream?api_key=${apiKey}&Static=true${subtitleParam}`;
+        console.log('📺 Using DirectPlay method');
+      } else if (mediaSource.TranscodingUrl) {
+        // For transcoding, modify the existing URL to replace subtitle track
+        let transcodingUrl = mediaSource.TranscodingUrl;
+        console.log('📺 Before removal:', transcodingUrl);
+        
+        // Remove existing SubtitleStreamIndex if present
+        transcodingUrl = transcodingUrl.replace(/[&?]SubtitleStreamIndex=\d+/g, '');
+        console.log('📺 After removal:', transcodingUrl);
+        
+        // Add the new SubtitleStreamIndex if trackId >= 0
+        if (trackId >= 0) {
+          const separator = transcodingUrl.includes('?') ? '&' : '?';
+          newStreamUrl = `${baseUrl}${transcodingUrl}${separator}SubtitleStreamIndex=${trackId}`;
+          console.log('📺 Added new subtitle index:', trackId);
+        } else {
+          newStreamUrl = `${baseUrl}${transcodingUrl}`;
+          console.log('📺 Disabled subtitles (trackId -1)');
         }
-      } else if (trackId === -1) {
-        console.log('📺 Disabling subtitles by restarting stream without subtitle');
-        
-        // Store current playback position
-        const currentTime = video.currentTime;
-        const isPlaying = !video.paused;
-        
-        // Get new playback info without subtitle
-        const baseUrl = localStorage.getItem('jellyfin_server_url');
-        const apiKey = localStorage.getItem('jellyfin_api_key');
-        const userId = localStorage.getItem('jellyfin_user_id');
+        console.log('📺 Using Transcoding method');
+      } else if (mediaSource.SupportsDirectStream) {
+        // For direct stream, add subtitle stream index parameter
+        const subtitleParam = trackId >= 0 ? `&SubtitleStreamIndex=${trackId}` : '';
+        newStreamUrl = `${baseUrl}/Videos/${mediaSource.Id}/stream?api_key=${apiKey}${subtitleParam}`;
+        console.log('📺 Using DirectStream method');
+      } else {
+        console.error('❌ No supported stream method found');
+        return;
+      }
 
-        if (!baseUrl || !apiKey || !userId) return;
-
-        const response = await fetch(
-          `${baseUrl}/Items/${currentItem.jellyfinItemId}/PlaybackInfo`,
-          {
-            method: 'POST',
-            headers: {
-              'X-Emby-Token': apiKey,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              UserId: userId,
-              StartTimeTicks: Math.floor(currentTime * 10000000),
-              IsPlayback: true,
-              AutoOpenLiveStream: true,
-              MaxStreamingBitrate: 10000000,
-              SubtitleStreamIndex: -1, // Explicitly disable subtitles
-              DeviceProfile: {
-                MaxStreamingBitrate: 120000000,
-                MaxStaticBitrate: 100000000,
-                DirectPlayProfiles: [
-                  { Container: 'webm', Type: 'Video', VideoCodec: 'vp8,vp9,av1', AudioCodec: 'vorbis,opus' },
-                  { Container: 'mp4,m4v', Type: 'Video', VideoCodec: 'h264,hevc,av1', AudioCodec: 'aac,mp3,mp2,opus,flac,vorbis' },
-                  { Container: 'hls', Type: 'Video', VideoCodec: 'av1,h264,vp9', AudioCodec: 'aac,mp2,opus,flac' },
-                ],
-                TranscodingProfiles: [
-                  {
-                    Container: 'mp4',
-                    Type: 'Video',
-                    AudioCodec: 'aac,opus,flac',
-                    VideoCodec: 'av1,h264,vp9',
-                    Context: 'Streaming',
-                    Protocol: 'hls',
-                    MaxAudioChannels: '2',
-                    MinSegments: '2',
-                    BreakOnNonKeyFrames: true,
-                  },
-                ],
-                SubtitleProfiles: [
-                  {
-                    Format: 'subrip',
-                    Method: 'Encode'
-                  },
-                  {
-                    Format: 'ass',
-                    Method: 'Encode'
-                  },
-                  {
-                    Format: 'ssa',
-                    Method: 'Encode'
-                  }
-                ],
-              },
-            }),
+      console.log('📺 Generated new stream URL with subtitle:', newStreamUrl);
+      
+      if (hlsRef.current) {
+        reloadHlsSource(newStreamUrl, currentTime, isPlaying);
+      } else {
+        video.src = newStreamUrl;
+        video.addEventListener('loadedmetadata', () => {
+          video.currentTime = currentTime;
+          if (isPlaying) {
+            video.play();
           }
-        );
-
-        if (response.ok) {
-          const newPlaybackInfo = await response.json();
-          const newStreamUrl = newPlaybackInfo.MediaSources?.[0]?.TranscodingUrl;
-          
-          if (newStreamUrl) {
-            const fullStreamUrl = `${baseUrl}${newStreamUrl}`;
-            console.log('📺 Got new stream URL without subtitle:', fullStreamUrl);
-            
-            // Update the HLS source
-            if (hlsRef.current) {
-              hlsRef.current.loadSource(fullStreamUrl);
-              
-              hlsRef.current.on(Hls.Events.MANIFEST_PARSED, () => {
-                video.currentTime = currentTime;
-                if (isPlaying) {
-                  video.play();
-                }
-              });
-            } else {
-              video.src = fullStreamUrl;
-              video.addEventListener('loadedmetadata', () => {
-                video.currentTime = currentTime;
-                if (isPlaying) {
-                  video.play();
-                }
-              }, { once: true });
-            }
-            
-            setPlaybackInfo(newPlaybackInfo);
-            console.log('✅ Stream restarted without subtitles');
-          }
-        }
+          setTrackState(prev => ({ ...prev, isSwitchingTracks: false }));
+        }, { once: true });
       }
       
+      setStreamUrl(newStreamUrl);
       setTrackState(prev => ({ ...prev, selectedSubtitleTrack: trackId }));
+      console.log('✅ Stream restarted with subtitle track:', trackId);
     } catch (error) {
       console.error('❌ Failed to switch subtitle track:', error);
+      setTrackState(prev => ({ ...prev, isSwitchingTracks: false }));
     }
-  }, [playbackInfo, currentItem?.jellyfinItemId, currentItem?.mediaStreams]);
+  }, [currentItem?.jellyfinItemId, playbackInfo]);
 
   // UI state handlers
   const updateUIState = useCallback((updates: Partial<UIState>) => {
@@ -1149,7 +1155,14 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
 
   // Effects
   useEffect(() => {
-    initializeVideo();
+    const initialize = async () => {
+      const url = await initializePlaybackSession();
+      if (url) {
+        await initializeVideo(url);
+      }
+    };
+    
+    initialize();
     
     return () => {
       if (hlsRef.current) {
@@ -1163,10 +1176,10 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
         reportPlaybackStop(positionTicks);
       }
     };
-  }, [initializeVideo, currentItem, reportPlaybackStop]);
+  }, [initializePlaybackSession, initializeVideo, currentItem, reportPlaybackStop]);
 
   useEffect(() => {
-    if (!currentItem?.jellyfinItemId || currentItem.chapters) {
+    if (!currentItem?.jellyfinItemId || chapters.length > 0) {
       return;
     }
 
@@ -1174,12 +1187,10 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
 
     const loadChapters = async () => {
       try {
-        const chapters = await fetchChapters(currentItem.jellyfinItemId!);
+        const fetchedChapters = await fetchChapters(currentItem.jellyfinItemId!);
         
-        if (!isCancelled && chapters.length > 0 && !currentItem.chapters) {
-          const updatedQueue = [...queue];
-          updatedQueue[currentIndex] = { ...currentItem, chapters };
-          onQueueChange(updatedQueue);
+        if (!isCancelled && fetchedChapters.length > 0) {
+          setChapters(fetchedChapters);
         }
       } catch (error) {
         console.error('Failed to load chapters:', error);
@@ -1480,7 +1491,7 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
           <div className="px-5 py-5 bg-zinc-900/95 backdrop-blur-sm relative">
             <ProgressBar
               playerState={playerState}
-              currentItem={currentItem}
+              chapters={chapters}
               hoverState={hoverState}
               onSeek={handleSeek}
               onChapterSeek={seekToChapter}
@@ -1500,10 +1511,10 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
 
               <PlayerControls
                 playerState={playerState}
-                currentItem={currentItem}
                 isCurrentItemEpisode={isCurrentItemEpisode}
                 queue={queue}
                 currentIndex={currentIndex}
+                chapters={chapters}
                 onPlayPause={handlePlayPause}
                 onPrevious={handlePrevious}
                 onNext={handleNext}
@@ -1521,7 +1532,7 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
                 playerState={playerState}
                 uiState={uiState}
                 trackState={trackState}
-                currentItem={currentItem}
+                chapters={chapters}
                 audioTracks={getAvailableTracks.audioTracks}
                 subtitleTracks={getAvailableTracks.subtitleTracks}
                 onVolumeChange={handleVolumeChange}

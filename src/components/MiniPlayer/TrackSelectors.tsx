@@ -13,13 +13,13 @@ import {
   VolumeX,
   X
 } from 'lucide-react';
-import { AudioTrack, Chapter, PlayerState, QueueItem, SubtitleTrack, TrackState, UIState } from './types';
+import { AudioTrack, Chapter, PlayerState, SubtitleTrack, TrackState, UIState } from './types';
 
 interface TrackSelectorsProps {
   playerState: PlayerState;
   uiState: UIState;
   trackState: TrackState;
-  currentItem: QueueItem | null;
+  chapters: Chapter[];
   audioTracks: AudioTrack[];
   subtitleTracks: SubtitleTrack[];
   onVolumeChange: (value: number[]) => void;
@@ -41,7 +41,7 @@ export const TrackSelectors: React.FC<TrackSelectorsProps> = ({
   playerState,
   uiState,
   trackState,
-  currentItem,
+  chapters,
   audioTracks,
   subtitleTracks,
   onVolumeChange,
@@ -218,7 +218,7 @@ export const TrackSelectors: React.FC<TrackSelectorsProps> = ({
       </div>
 
       {/* Chapters Selector */}
-      {currentItem?.chapters && currentItem.chapters.length > 0 && (
+      {chapters && chapters.length > 0 && (
         <div className="relative">
           <Button
             variant="ghost"
@@ -239,9 +239,9 @@ export const TrackSelectors: React.FC<TrackSelectorsProps> = ({
             >
               <div className="p-2">
                 <div className="text-white text-sm font-medium mb-2">
-                  Chapters ({currentItem.chapters.length})
+                  Chapters ({chapters.length})
                 </div>
-                {currentItem.chapters.map((chapter, index) => {
+                {chapters.map((chapter, index) => {
                   const chapterTime = ticksToSeconds(chapter.StartPositionTicks);
                   const isCurrentChapter = getCurrentChapter?.index === index;
                   return (

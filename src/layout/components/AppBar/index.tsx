@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button';
-import { Cast, Film, Home as HomeIcon, LogOut, Menu, Search as SearchIcon, Settings, Tv } from 'lucide-react';
+import { Cast, Download, Film, Home as HomeIcon, LogOut, Menu, Search as SearchIcon, Settings, Tv } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAtom } from 'jotai';
 import { Link, useLocation, useNavigate } from 'react-router';
@@ -19,13 +19,13 @@ const TabButton = ({ icon, label, isActive, onClick }: TabButtonProps) => {
       onClick={onClick}
       className={cn(
         'flex flex-col items-center justify-center gap-0.5 w-full h-full transition-all duration-200',
-        isActive ? 'text-red-500' : 'text-zinc-400 hover:text-red-500',
+        isActive ? 'text-primary' : 'text-muted-foreground hover:text-primary',
       )}
     >
       <div
         className={cn(
           'p-1.5 rounded-xl transition-all duration-200',
-          isActive ? 'bg-red-500/10' : 'hover:bg-red-500/10',
+          isActive ? 'bg-primary/10' : 'hover:bg-primary/10',
         )}
       >
         {icon}
@@ -48,6 +48,9 @@ export default function TopBar() {
   };
 
   const handleContentTypeClick = (type: 'movie' | 'tv') => {
+    if (location.pathname !== '/') {
+      navigate('/');
+    }
     if (selectedContentType === type) {
       setSelectedContentType(null);
     } else {
@@ -66,7 +69,7 @@ export default function TopBar() {
     <>
       {/* Top Bar - Hide on search page */}
       {!isSearchPage && (
-        <div className="fixed top-0 left-0 right-0 h-14 bg-zinc-900/95 backdrop-blur-md border-b border-zinc-800 shadow-lg z-50 md:top-2 md:left-2 md:right-2 md:rounded-2xl md:border-b-0 md:border">
+        <div className="fixed top-0 left-0 right-0 h-14 bg-background/95 dark:bg-background/90 backdrop-blur-md border-b border-border shadow-lg z-50 md:top-2 md:left-2 md:right-2 md:rounded-2xl md:border-b-0 md:border">
           <div className="flex items-center justify-between h-full px-4">
             {/* Left Section */}
             <div className="flex items-center gap-4">
@@ -75,8 +78,8 @@ export default function TopBar() {
                   variant="ghost"
                   size="icon"
                   className={cn(
-                    'text-zinc-400 hover:text-red-500 hover:bg-red-500/10 rounded-xl',
-                    isSidebarOpen && 'text-red-500',
+                    'text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-xl',
+                    isSidebarOpen && 'text-primary',
                   )}
                   onClick={toggleSidebar}
                 >
@@ -91,7 +94,7 @@ export default function TopBar() {
                   className="h-6"
                 />
 
-                <h1 className="heading-font text-white self-center">
+                <h1 className="heading-font text-foreground self-center">
                   Madari One
                 </h1>
               </Link>
@@ -103,11 +106,14 @@ export default function TopBar() {
                       variant="ghost"
                       size="sm"
                       className={cn(
-                        'text-zinc-400 hover:text-red-500 hover:bg-red-500/10 rounded-xl',
-                        selectedContentType === null &&
-                          'text-red-500 bg-red-500/10',
+                        'text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-xl',
+                        selectedContentType === null && location.pathname === '/' &&
+                          'text-primary bg-primary/10',
                       )}
-                      onClick={() => setSelectedContentType(null)}
+                      onClick={() => {
+                        setSelectedContentType(null);
+                        navigate('/');
+                      }}
                     >
                       <HomeIcon size={16} className="mr-2" />
                       All
@@ -116,9 +122,9 @@ export default function TopBar() {
                       variant="ghost"
                       size="sm"
                       className={cn(
-                        'text-zinc-400 hover:text-red-500 hover:bg-red-500/10 rounded-xl',
-                        selectedContentType === 'movie' &&
-                          'text-red-500 bg-red-500/10',
+                        'text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-xl',
+                        selectedContentType === 'movie' && location.pathname === '/' &&
+                          'text-primary bg-primary/10',
                       )}
                       onClick={() => handleContentTypeClick('movie')}
                     >
@@ -129,14 +135,27 @@ export default function TopBar() {
                       variant="ghost"
                       size="sm"
                       className={cn(
-                        'text-zinc-400 hover:text-red-500 hover:bg-red-500/10 rounded-xl',
-                        selectedContentType === 'tv' &&
-                          'text-red-500 bg-red-500/10',
+                        'text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-xl',
+                        selectedContentType === 'tv' && location.pathname === '/' &&
+                          'text-primary bg-primary/10',
                       )}
                       onClick={() => handleContentTypeClick('tv')}
                     >
                       <Tv size={16} className="mr-2" />
                       TV Shows
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={cn(
+                        'text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-xl',
+                        location.pathname.startsWith('/arr-apps') &&
+                          'text-primary bg-primary/10',
+                      )}
+                      onClick={() => navigate('/arr-apps/series-movies')}
+                    >
+                      <Download size={16} className="mr-2" />
+                      Arr Apps
                     </Button>
                   </>
                 )}
@@ -155,7 +174,7 @@ export default function TopBar() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="text-zinc-400 hover:text-red-500 hover:bg-red-500/10 rounded-xl"
+                  className="text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-xl"
                   onClick={() => navigate('/settings')}
                 >
                   <Settings size={20} />
@@ -164,7 +183,7 @@ export default function TopBar() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="text-zinc-400 hover:text-red-500 hover:bg-red-500/10 rounded-xl"
+                  className="text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-xl"
                 >
                   <Cast size={20} />
                 </Button>
@@ -172,7 +191,7 @@ export default function TopBar() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="text-zinc-400 hover:text-red-500 hover:bg-red-500/10 rounded-xl"
+                  className="text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-xl"
                   onClick={handleSignOut}
                 >
                   <LogOut size={16} className="mr-2" />
@@ -184,7 +203,7 @@ export default function TopBar() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="text-zinc-400 hover:text-red-500 hover:bg-red-500/10 rounded-xl"
+                  className="text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-xl"
                 >
                   <Cast size={20} />
                 </Button>
@@ -196,7 +215,7 @@ export default function TopBar() {
 
       {/* Mobile Bottom Tab Bar - Always visible */}
       {isMobile && (
-        <div className="fixed bottom-0 left-0 right-0 h-14 bg-zinc-900/95 backdrop-blur-md border-t border-zinc-800 z-50">
+        <div className="fixed bottom-0 left-0 right-0 h-14 bg-background/95 dark:bg-background/90 backdrop-blur-md border-t border-border z-50">
           <div className="flex items-center justify-around h-full px-1">
             <TabButton
               icon={<HomeIcon size={20} />}
@@ -209,6 +228,12 @@ export default function TopBar() {
               label="Search"
               isActive={location.pathname === '/search'}
               onClick={() => navigate('/search')}
+            />
+            <TabButton
+              icon={<Download size={20} />}
+              label="Arr Apps"
+              isActive={location.pathname.startsWith('/arr-apps')}
+              onClick={() => navigate('/arr-apps/series-movies')}
             />
             <TabButton
               icon={<Settings size={20} />}

@@ -5,33 +5,8 @@ export interface Chapter {
 }
 
 export interface QueueItem {
-  id: string;
+  jellyfinItemId: string;
   title: string;
-  subtitle?: string;
-  url: string;
-  poster?: string;
-  duration?: number;
-  jellyfinItemId?: string; // The actual Jellyfin item ID for track switching
-  playSessionId?: string; // PlaySession ID for stopping active encodings
-  chapters?: Chapter[]; // Chapter information
-  startPositionTicks?: number; // Resume position in ticks (from API call)
-  // Episode information
-  isEpisode?: boolean;
-  seasonId?: string;
-  seriesId?: string;
-  indexNumber?: number; // Episode number
-  parentIndexNumber?: number; // Season number
-  mediaStreams?: Array<{
-    Index: number;
-    Type: string;
-    Codec: string;
-    Language?: string;
-    DisplayTitle: string;
-    IsDefault: boolean;
-    Width?: number;
-    Height?: number;
-    BitRate?: number;
-  }>;
 }
 
 export interface PlayerState {

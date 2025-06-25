@@ -63,7 +63,6 @@ export const StreamRenderer: React.FC<StreamRendererProps> = ({
   const [sources, setSources] = useState<StreamSource[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
-  const [startPositionTicks, setStartPositionTicks] = useState(0);
   const availablePlayers = getAvailablePlayers();
 
   useEffect(() => {
@@ -99,7 +98,6 @@ export const StreamRenderer: React.FC<StreamRendererProps> = ({
         if (itemResponse.ok) {
           const itemData = await itemResponse.json();
           startTimeTicks = itemData.UserData?.PlaybackPositionTicks || 0;
-          setStartPositionTicks(startTimeTicks);
         }
 
         const response = await fetch(
@@ -228,17 +226,8 @@ export const StreamRenderer: React.FC<StreamRendererProps> = ({
       : meta.id.toString();
 
     const queueItem = {
-      id: `${meta.id}-${source.title}`,
+      jellyfinItemId: actualItemId || meta.id.toString(),
       title: meta.name,
-      subtitle: seasonNumber && episodeNumber 
-        ? `S${seasonNumber}E${episodeNumber} - ${source.title}`
-        : source.title,
-      url: source.source.url,
-      poster: meta.poster,
-      jellyfinItemId: actualItemId, // Use the actual episode ID
-      playSessionId: playbackInfo?.PlaySessionId, // Store PlaySession ID for stopping active encodings
-      mediaStreams: mediaSource?.MediaStreams || [],
-      startPositionTicks: startPositionTicks, // Resume position
     };
     
     playNow(queueItem);
@@ -257,17 +246,8 @@ export const StreamRenderer: React.FC<StreamRendererProps> = ({
       : meta.id.toString();
 
     const queueItem = {
-      id: `${meta.id}-${source.title}`,
+      jellyfinItemId: actualItemId || meta.id.toString(),
       title: meta.name,
-      subtitle: seasonNumber && episodeNumber 
-        ? `S${seasonNumber}E${episodeNumber} - ${source.title}`
-        : source.title,
-      url: source.source.url,
-      poster: meta.poster,
-      jellyfinItemId: actualItemId, // Use the actual episode ID
-      playSessionId: playbackInfo?.PlaySessionId, // Store PlaySession ID for stopping active encodings
-      mediaStreams: mediaSource?.MediaStreams || [],
-      startPositionTicks: startPositionTicks, // Resume position
     };
     
     addToQueue(queueItem);

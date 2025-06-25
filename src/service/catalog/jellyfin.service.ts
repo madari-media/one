@@ -131,29 +131,38 @@ export class JellyfinService implements CatalogBaseService {
 
   async catalogMeta(catalog: Catalog): Promise<Meta[]> {
     let endpoint = '';
+    let headers = this.headers;
     
     switch (catalog.id) {
       case 'jellyfin-continue':
-        endpoint = `/Users/${this.userId}/Items/Resume`;
+        // Enhanced Resume endpoint with better parameters and cache control
+        endpoint = `/Users/${this.userId}/Items/Resume?Recursive=true&Fields=BasicSyncInfo,CanDelete,PrimaryImageAspectRatio,ProductionYear,Status,EndDate&EnableImages=true&ImageTypeLimit=1&EnableImageTypes=Primary,Backdrop,Banner,Thumb&Limit=50`;
+        // Add cache-busting for continue watching to ensure fresh data
+        headers = {
+          ...this.headers,
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        };
         break;
       case 'jellyfin-latest-movies':
-        endpoint = `/Users/${this.userId}/Items/Latest?includeItemTypes=Movie`;
+        endpoint = `/Users/${this.userId}/Items/Latest?includeItemTypes=Movie&Fields=BasicSyncInfo,PrimaryImageAspectRatio&EnableImages=true&ImageTypeLimit=1`;
         break;
       case 'jellyfin-latest-shows':
-        endpoint = `/Users/${this.userId}/Items/Latest?includeItemTypes=Series`;
+        endpoint = `/Users/${this.userId}/Items/Latest?includeItemTypes=Series&Fields=BasicSyncInfo,PrimaryImageAspectRatio&EnableImages=true&ImageTypeLimit=1`;
         break;
       case 'jellyfin-movies':
-        endpoint = `/Users/${this.userId}/Items?includeItemTypes=Movie&recursive=true&sortBy=DateCreated&sortOrder=Descending`;
+        endpoint = `/Users/${this.userId}/Items?includeItemTypes=Movie&recursive=true&sortBy=DateCreated&sortOrder=Descending&Fields=BasicSyncInfo,PrimaryImageAspectRatio&EnableImages=true&ImageTypeLimit=1`;
         break;
       case 'jellyfin-shows':
-        endpoint = `/Users/${this.userId}/Items?includeItemTypes=Series&recursive=true&sortBy=DateCreated&sortOrder=Descending`;
+        endpoint = `/Users/${this.userId}/Items?includeItemTypes=Series&recursive=true&sortBy=DateCreated&sortOrder=Descending&Fields=BasicSyncInfo,PrimaryImageAspectRatio&EnableImages=true&ImageTypeLimit=1`;
         break;
       default:
         return [];
     }
 
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
-      headers: this.headers,
+      headers,
     });
 
     if (!response.ok) {
